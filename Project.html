@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time-Talker Music Player</title>
+<style>
+  body {
+    font-family: Poppins, Arial, sans-serif;
+    background: linear-gradient(135deg, #000, #222);
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    height: 100vh;
+    margin: 0;
+  }
+  .box {
+    background: #1b1b1b;
+    padding: 25px;
+    border-radius: 20px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.6);
+    text-align: center;
+    width: 90%;
+    max-width: 400px;
+  }
+  button {
+    background: #0d6efd;
+    border: none;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 10px;
+    font-size: 15px;
+    margin: 5px;
+  }
+  button:hover { background: #0b5ed7; }
+  input[type="number"] {
+    width: 70px;
+    border: none;
+    border-radius: 8px;
+    padding: 5px;
+    text-align: center;
+  }
+  audio { width: 100%; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h2>🎧 Time-Talker Music Player</h2>
+  <input type="file" id="fileInput" accept="audio/*" multiple><br><br>
+
+  <button id="playBtn">▶️ Play</button>
+  <button id="pauseBtn">⏸ Pause</button>
+  <button id="nextBtn">⏭ Next</button>
+  <button id="testVoice">🗣 Test Voice</button>
+
+  <div style="margin-top:10px;">
+    <label>Announce every (mins):</label>
+    <input type="number" id="intervalInput" value="20" min="1">
+  </div>
+
+  <p id="nowPlaying">No music playing...</p>
+  <audio id="audio" controls></audio>
+</div>
+
+<script>
+const audio = document.getElementById("audio");
+const fileInput = document.getElementById("fileInput");
+const nowPlaying = document.getElementById("nowPlaying");
+const intervalInput = document.getElementById("intervalInput");
+const testVoice = document.getElementById("testVoice");
+const playBtn = document.getElementById("playBtn");
+const pauseBtn = document.getElementById("pauseBtn");
+const nextBtn = document.getElementById("nextBtn");
+
+let files = [];
+let index = 0;
+let timer = null;
+let intervalMinutes = 20;
+
+// === SPEAK FUNCTION ===
+function speak(text, callback) {
+  const msg = new SpeechSynthesisUtterance(text);
+  msg.lang = "en-US";
+  msg.rate = 1;
+  msg.pitch = 1;
+  msg.onend = () => { if (callback) callback(); };
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(msg);
+}
+
+// === VOLUME FADE FUNCTION ===
+function fadeVolume(targetVolume, duration, callback) {
+  let step = 0.05;
+  let intervalTime = duration * step;
+  let fade = setInterval(() => {
+    if (Math.abs(audio.volume - targetVolume) < 0.01) {
+      audio.volume = targetVolume;
+      clearInterval(fade);
+      if (callback) callback();
+    } else if (audio.volume < targetVolume) {
+      audio.volume += step;
+    } else {
+      audio.volume -= step;
+    }
+  }, intervalTime);
+}
+
+// === ANNOUNCE TIME ===
+function announceTime() {
+  if (!audio.src) return;
+  if (speechSynthesis.speaking) return;
+
+  const now = new Date();
+  const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const originalVolume = audio.volume;
+
+  fadeVolume(0.1, 500, () => {
+    speak(`The time is ${time}`, () => {
+      fadeVolume(originalVolume, 500);
+    });
+  });
+}
+
+// === LOAD FILES ===
+fileInput.onchange = (e) => {
+  files = Array.from(e.target.files);
+  index = 0;
+  if (files.length > 0) loadTrack(index);
+};
+
+function loadTrack(i) {
+  const file = files[i];
+  if (!file) return;
+  audio.src = URL.createObjectURL(file);
+  nowPlaying.textContent = `Now playing: ${file.name}`;
+  audio.play();
+}
+
+// === BUTTON CONTROLS ===
+playBtn.onclick = () => {
+  if (!audio.src && files.length > 0) loadTrack(0);
+  audio.play();
+  startTimer();
+};
+
+pauseBtn.onclick = () => {
+  audio.pause();
+  stopTimer();
+};
+
+nextBtn.onclick = () => {
+  index++;
+  if (index >= files.length) index = 0;
+  loadTrack(index);
+};
+
+testVoice.onclick = () => speak("Voice check successful!");
+
+// === AUDIO END HANDLER ===
+audio.onended = () => {
+  index++;
+  if (index < files.length) {
+    loadTrack(index);
+  } else {
+    nowPlaying.textContent = "Playlist finished.";
+    stopTimer();
+  }
+};
+
+// === TIMER SETUP ===
+intervalInput.onchange = () => {
+  intervalMinutes = parseInt(intervalInput.value);
+  startTimer();
+};
+
+function startTimer() {
+  stopTimer();
+  timer = setInterval(() => {
+    if (!speechSynthesis.speaking) announceTime();
+  }, intervalMinutes * 60000);
+}
+
+function stopTimer() {
+  clearInterval(timer);
+}
+</script>
+</body>
+</html>
